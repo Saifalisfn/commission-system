@@ -13,9 +13,11 @@ export const useAuth = () => {
   return context;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL 
 
 axios.defaults.baseURL = API_BASE_URL;
+
 
 
 // Request interceptor to add auth token

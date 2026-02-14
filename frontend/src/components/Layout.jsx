@@ -57,6 +57,8 @@ const Layout = () => {
                 <Link to="/filing-locks" className={getLinkClasses('/filing-locks')}>
                   Filing Locks
                 </Link>
+                <Link to="/uploadExcel"className={getLinkClasses('/uploadExcel')}>
+                Upload Excel</Link>
               </div>
             </div>
 

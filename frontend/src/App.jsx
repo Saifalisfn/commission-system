@@ -9,6 +9,7 @@ import Reports from './pages/Reports';
 import FilingLocks from './pages/FilingLocks';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import UploadExcel from './pages/UploadExcel';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
           <Route path="transactions" element={<Transactions />} />
           <Route path="reports" element={<Reports />} />
           <Route path="filing-locks" element={<FilingLocks />} />
+          <Route path='uploadExcel' element ={<UploadExcel/>} />  
         </Route>
       </Routes>
       <Toaster position="top-right" />

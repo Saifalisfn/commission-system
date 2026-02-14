@@ -3,25 +3,27 @@ import { calculateCommission, validateCalculations } from '../utils/calculateCom
 import { generateInvoiceNumber, getFinancialYear } from '../utils/invoiceNumber.js';
 import GSTAuditLog from '../models/GSTAuditLog.model.js';
 import { validateTransactionForGST } from '../utils/gstValidation.js';
+import XLSX from "xlsx";
+import fs from "fs";
 
-/**
- * Create a new transaction
- * POST /api/v1/transactions
- * 
- * CRITICAL: All calculations are done server-side to ensure GST compliance
- */
+/* =========================================
+   CREATE TRANSACTION
+========================================= */
 export const createTransaction = async (req, res, next) => {
   try {
     const { date, totalReceived, commissionPercent, paymentMode, remarks } = req.body;
 
-    // Use default commission percent if not provided
-    const commissionPercentValue = commissionPercent || parseFloat(process.env.DEFAULT_COMMISSION_PERCENT) || 1;
+    const commissionPercentValue =
+      commissionPercent ?? parseFloat(process.env.DEFAULT_COMMISSION_PERCENT) ?? 1;
+
     const gstRate = parseFloat(process.env.GST_RATE) || 18;
 
-    // Calculate commission, GST, net income, and return amount
-    const calculations = calculateCommission(totalReceived, commissionPercentValue, gstRate);
+    const calculations = calculateCommission(
+      totalReceived,
+      commissionPercentValue,
+      gstRate
+    );
 
-    // Validate calculations
     if (!validateCalculations(totalReceived, calculations)) {
       return res.status(400).json({
         success: false,
@@ -29,12 +31,11 @@ export const createTransaction = async (req, res, next) => {
       });
     }
 
-    // Generate invoice number and financial year
     const transactionDate = date ? new Date(date) : new Date();
+
     const invoiceNumber = await generateInvoiceNumber(transactionDate);
     const financialYear = getFinancialYear(transactionDate);
 
-    // Validate transaction for GST compliance
     const gstValidation = validateTransactionForGST({
       commissionAmount: calculations.commissionAmount,
       gstAmount: calculations.gstAmount,
@@ -49,15 +50,11 @@ export const createTransaction = async (req, res, next) => {
       });
     }
 
-    // Create transaction
     const transaction = await Transaction.create({
       date: transactionDate,
       totalReceived,
       commissionPercent: commissionPercentValue,
-      commissionAmount: calculations.commissionAmount,
-      gstAmount: calculations.gstAmount,
-      netIncome: calculations.netIncome,
-      returnAmount: calculations.returnAmount,
+      ...calculations,
       paymentMode: paymentMode || 'QR',
       createdBy: req.user._id,
       remarks: remarks || '',
@@ -65,10 +62,8 @@ export const createTransaction = async (req, res, next) => {
       financialYear
     });
 
-    // Populate creator info
     await transaction.populate('createdBy', 'name email');
 
-    // Create audit log
     await GSTAuditLog.createLog({
       action: 'TRANSACTION_CREATED',
       performedBy: req.user._id,
@@ -82,9 +77,7 @@ export const createTransaction = async (req, res, next) => {
       details: {
         invoiceNumber,
         totalReceived,
-        commissionAmount: calculations.commissionAmount,
-        gstAmount: calculations.gstAmount,
-        netIncome: calculations.netIncome
+        ...calculations
       },
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
@@ -96,47 +89,43 @@ export const createTransaction = async (req, res, next) => {
       message: 'Transaction created successfully',
       data: { transaction }
     });
-  } catch (error) {
-    next(error);
+
+  } catch (err) {
+    next(err);
   }
 };
 
-/**
- * Get all transactions with optional filters
- * GET /api/v1/transactions?month=&year=&page=&limit=
- */
+/* =========================================
+   GET TRANSACTIONS
+========================================= */
 export const getTransactions = async (req, res, next) => {
   try {
     const { month, year, page = 1, limit = 50 } = req.query;
 
-    // Build query
     const query = {};
 
-    // Filter by month and year
     if (month && year) {
-      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
-      query.date = { $gte: startDate, $lte: endDate };
+      query.date = {
+        $gte: new Date(year, month - 1, 1),
+        $lte: new Date(year, month, 0, 23, 59, 59)
+      };
     } else if (year) {
-      const startDate = new Date(parseInt(year), 0, 1);
-      const endDate = new Date(parseInt(year), 11, 31, 23, 59, 59);
-      query.date = { $gte: startDate, $lte: endDate };
+      query.date = {
+        $gte: new Date(year, 0, 1),
+        $lte: new Date(year, 11, 31, 23, 59, 59)
+      };
     }
 
-    // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const skip = (page - 1) * limit;
 
-    // Get transactions
     const transactions = await Transaction.find(query)
       .populate('createdBy', 'name email')
       .sort({ date: -1, createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(Number(limit));
 
-    // Get total count
     const total = await Transaction.countDocuments(query);
 
-    // Calculate summary
     const summary = await Transaction.aggregate([
       { $match: query },
       {
@@ -157,179 +146,257 @@ export const getTransactions = async (req, res, next) => {
       data: {
         transactions,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: Number(page),
+          limit: Number(limit),
           total,
-          pages: Math.ceil(total / parseInt(limit))
+          pages: Math.ceil(total / limit)
         },
-        summary: summary[0] || {
-          totalReceived: 0,
-          totalCommission: 0,
-          totalGST: 0,
-          totalNetIncome: 0,
-          totalReturn: 0,
-          count: 0
-        }
+        summary: summary[0] || {}
       }
     });
-  } catch (error) {
-    next(error);
+
+  } catch (err) {
+    next(err);
   }
 };
 
-/**
- * Get a single transaction by ID
- * GET /api/v1/transactions/:id
- */
+/* =========================================
+   GET SINGLE
+========================================= */
 export const getTransaction = async (req, res, next) => {
   try {
     const transaction = await Transaction.findById(req.params.id)
       .populate('createdBy', 'name email');
 
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
-    }
+    if (!transaction)
+      return res.status(404).json({ success: false, message: "Not found" });
 
-    res.json({
-      success: true,
-      data: { transaction }
-    });
-  } catch (error) {
-    next(error);
+    res.json({ success: true, data: { transaction } });
+  } catch (err) {
+    next(err);
   }
 };
 
-/**
- * Update a transaction
- * PUT /api/v1/transactions/:id
- */
+/* =========================================
+   UPDATE TRANSACTION
+========================================= */
 export const updateTransaction = async (req, res, next) => {
   try {
-    const { date, totalReceived, commissionPercent, paymentMode, remarks } = req.body;
-
     const transaction = await Transaction.findById(req.params.id);
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
-    }
+    if (!transaction)
+      return res.status(404).json({ success: false, message: "Not found" });
 
-    // Recalculate if amount or commission percent changed
-    let calculations = {
+    const oldValues = {
+      totalReceived: transaction.totalReceived,
       commissionAmount: transaction.commissionAmount,
-      gstAmount: transaction.gstAmount,
-      netIncome: transaction.netIncome,
-      returnAmount: transaction.returnAmount
+      gstAmount: transaction.gstAmount
     };
 
-    if (totalReceived || commissionPercent !== undefined) {
-      const totalReceivedValue = totalReceived || transaction.totalReceived;
-      const commissionPercentValue = commissionPercent !== undefined ? commissionPercent : transaction.commissionPercent;
-      const gstRate = parseFloat(process.env.GST_RATE) || 18;
+    const total = req.body.totalReceived ?? transaction.totalReceived;
+    const percent = req.body.commissionPercent ?? transaction.commissionPercent;
 
-      calculations = calculateCommission(totalReceivedValue, commissionPercentValue, gstRate);
-    }
+    const gstRate = parseFloat(process.env.GST_RATE) || 18;
+    const calculations = calculateCommission(total, percent, gstRate);
 
-    // Update transaction
-    transaction.date = date ? new Date(date) : transaction.date;
-    transaction.totalReceived = totalReceived || transaction.totalReceived;
-    transaction.commissionPercent = commissionPercent !== undefined ? commissionPercent : transaction.commissionPercent;
-    transaction.commissionAmount = calculations.commissionAmount;
-    transaction.gstAmount = calculations.gstAmount;
-    transaction.netIncome = calculations.netIncome;
-    transaction.returnAmount = calculations.returnAmount;
-    transaction.paymentMode = paymentMode || transaction.paymentMode;
-    transaction.remarks = remarks !== undefined ? remarks : transaction.remarks;
+    transaction.date = req.body.date ? new Date(req.body.date) : transaction.date;
+    transaction.totalReceived = total;
+    transaction.commissionPercent = percent;
+    Object.assign(transaction, calculations);
+    transaction.paymentMode = req.body.paymentMode ?? transaction.paymentMode;
+    transaction.remarks = req.body.remarks ?? transaction.remarks;
 
     await transaction.save();
-    await transaction.populate('createdBy', 'name email');
 
-    // Create audit log
-    const transactionDate = transaction.date;
     await GSTAuditLog.createLog({
       action: 'TRANSACTION_UPDATED',
       performedBy: req.user._id,
       entityType: 'TRANSACTION',
       entityId: transaction._id,
-      period: {
-        financialYear: transaction.financialYear,
-        month: transactionDate.getMonth() + 1,
-        year: transactionDate.getFullYear()
-      },
       details: {
-        invoiceNumber: transaction.invoiceNumber,
         oldValues,
-        newValues: {
-          totalReceived: transaction.totalReceived,
-          commissionAmount: transaction.commissionAmount,
-          gstAmount: transaction.gstAmount
-        }
+        newValues: calculations
       },
       ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
-      status: 'SUCCESS'
+      userAgent: req.get("user-agent"),
+      status: "SUCCESS"
     });
 
-    res.json({
-      success: true,
-      message: 'Transaction updated successfully',
-      data: { transaction }
-    });
-  } catch (error) {
-    next(error);
+    res.json({ success: true, data: { transaction } });
+
+  } catch (err) {
+    next(err);
   }
 };
 
-/**
- * Delete a transaction
- * DELETE /api/v1/transactions/:id
- */
-export const deleteTransaction = async (req, res, next) => {
+/* =========================================
+   DELETE
+========================================= */
+export const deleteTransaction = async (req,res,next)=>{
+  try{
+    await Transaction.findByIdAndDelete(req.params.id);
+    res.json({success:true,message:"Deleted"});
+  }catch(err){ next(err); }
+};
+
+/* =========================================
+   HELPERS
+========================================= */
+
+// Convert Excel serial date → real date
+const excelDateToJSDate = (excelDate) => {
+  if (typeof excelDate !== "number") return excelDate;
+  const date = new Date((excelDate - 25569) * 86400 * 1000);
+  return date.toISOString().split("T")[0];
+};
+
+// Validate headers
+const validateHeaders = (row) => {
+  const required = ["Date", "TotalReceived"];
+  return required.every((key) => key in row);
+};
+
+/* =========================================
+   UPLOAD EXCEL (DIRECT INSERT)
+========================================= */
+export const uploadSalesExcel = async (req, res) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
+    if (!req.file)
+      return res.status(400).json({ message: "Excel file required" });
+
+    const workbook = XLSX.readFile(req.file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet);
+
+    if (!data.length || !validateHeaders(data[0])) {
+      return res.status(400).json({
+        message:
+          "Invalid Excel format. Required headers: Date, TotalReceived"
       });
     }
 
-    const transactionData = {
-      invoiceNumber: transaction.invoiceNumber,
-      date: transaction.date,
-      totalReceived: transaction.totalReceived,
-      commissionAmount: transaction.commissionAmount
-    };
+    const transactions = data.map((row) => {
+      const total = Number(row.TotalReceived);
+      const percent = Number(row.CommissionPercent || 1);
 
-    await Transaction.findByIdAndDelete(req.params.id);
+      const calculations = calculateCommission(
+        total,
+        percent,
+        parseFloat(process.env.GST_RATE) || 18
+      );
 
-    // Create audit log
-    const transactionDate = transaction.date;
-    await GSTAuditLog.createLog({
-      action: 'TRANSACTION_DELETED',
-      performedBy: req.user._id,
-      entityType: 'TRANSACTION',
-      entityId: req.params.id,
-      period: {
-        financialYear: transaction.financialYear,
-        month: transactionDate.getMonth() + 1,
-        year: transactionDate.getFullYear()
-      },
-      details: transactionData,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
-      status: 'SUCCESS'
+      return {
+        date: row.Date
+          ? new Date(excelDateToJSDate(row.Date))
+          : new Date(),
+        totalReceived: total,
+        commissionPercent: percent,
+        ...calculations,
+        paymentMode: "QR",
+        remarks: row.Remarks || "",
+        createdBy: req.user._id
+      };
     });
+
+    await Transaction.insertMany(transactions);
+
+    // delete uploaded file
+    fs.unlinkSync(req.file.path);
 
     res.json({
       success: true,
-      message: 'Transaction deleted successfully'
+      inserted: transactions.length
     });
-  } catch (error) {
-    next(error);
+
+  } catch (err) {
+    console.error("UPLOAD ERROR:", err);
+
+    res.status(500).json({
+      message: "Excel upload failed",
+      error: err.message
+    });
+  }
+};
+
+
+/* =========================================
+   EXCEL PREVIEW
+========================================= */
+export const previewSalesExcel = async (req, res) => {
+  try {
+
+    if (!req.file)
+      return res.status(400).json({ message: "Excel required" });
+
+    const workbook = XLSX.readFile(req.file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet);
+
+    if (!data.length || !validateHeaders(data[0])) {
+      return res.status(400).json({
+        message:
+          "Invalid Excel format. Required headers: Date, TotalReceived"
+      });
+    }
+
+    const preview = data.map((row, i) => {
+
+      const total = Number(row.TotalReceived);
+      const percent = Number(row.CommissionPercent || 1);
+
+      const calculations = calculateCommission(
+        total,
+        percent,
+        parseFloat(process.env.GST_RATE) || 18
+      );
+
+      return {
+        row: i + 1,
+        date: excelDateToJSDate(row.Date),
+        totalReceived: total,
+        commissionPercent: percent,
+        ...calculations,
+        remarks: row.Remarks || ""
+      };
+    });
+
+    // delete file after preview
+    fs.unlinkSync(req.file.path);
+
+    res.json({ success: true, preview });
+
+  } catch (err) {
+
+    console.error("PREVIEW ERROR:", err);
+
+    res.status(500).json({
+      message: "Preview failed",
+      error: err.message
+    });
+  }
+};
+
+
+/* =========================================
+   CONFIRM EXCEL IMPORT
+========================================= */
+export const confirmExcelImport = async (req, res) => {
+  try {
+
+    await Transaction.insertMany(
+      req.body.transactions.map((t) => ({
+        ...t,
+        createdBy: req.user._id,
+        paymentMode: "QR"
+      }))
+    );
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("CONFIRM ERROR:", err);
+
+    res.status(500).json({
+      message: "Import failed"
+    });
   }
 };
