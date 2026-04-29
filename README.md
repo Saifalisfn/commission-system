@@ -230,6 +230,26 @@ return_amount = total_received − commission
 
 ## 🧪 Testing
 
+### Automated Tests
+
+The backend has a Jest test suite covering critical business logic and the auth layer.
+
+```bash
+cd backend
+npm test              # run all tests
+npm run test:coverage # run with coverage report
+```
+
+**Coverage (100 tests):**
+
+| Suite | Tests | What's covered |
+|---|---|---|
+| `calculateCommission` | 24 | GST math, rounding, edge cases, input validation |
+| `gstValidation` | 25 | Compliance rules, GST report filtering, per-transaction checks |
+| `invoiceNumber` | 15 | Invoice number format, Indian financial year boundaries |
+| `auth.middleware` | 11 | JWT validation, expired/malformed tokens, role-based access |
+| `auth routes` | 25 | Register, login, refresh, /me — validation + controller chain |
+
 ### Manual Testing Checklist
 
 - [ ] User registration & login
@@ -284,21 +304,27 @@ ISC
 ```
 .
 ├── backend/
-│   ├── controllers/     # Request handlers
-│   ├── models/          # Mongoose models
-│   ├── routes/          # Express routes
-│   ├── middleware/      # Custom middleware
-│   ├── utils/           # Utility functions
-│   ├── server.js        # Entry point
+│   ├── __tests__/
+│   │   ├── helpers/         # DB setup for integration tests
+│   │   ├── integration/     # Auth route integration tests
+│   │   ├── middleware/      # Auth middleware tests
+│   │   └── utils/           # Unit tests (calculateCommission, gstValidation, invoiceNumber)
+│   ├── controllers/         # Request handlers
+│   ├── models/              # Mongoose models
+│   ├── routes/              # Express routes
+│   ├── middleware/          # Custom middleware
+│   ├── utils/               # Utility functions
+│   ├── jest.config.cjs      # Jest configuration
+│   ├── server.js            # Entry point
 │   └── package.json
 │
 └── frontend/
     ├── src/
-    │   ├── components/  # Reusable components
-    │   ├── pages/       # Page components
-    │   ├── contexts/    # React contexts
-    │   ├── App.jsx      # Main app component
-    │   └── main.jsx     # Entry point
+    │   ├── components/      # Reusable components
+    │   ├── pages/           # Page components
+    │   ├── contexts/        # React contexts
+    │   ├── App.jsx          # Main app component
+    │   └── main.jsx         # Entry point
     └── package.json
 ```
 
@@ -317,6 +343,3 @@ For issues or questions, please check the code comments (especially in `calculat
 ---
 
 **Built with ❤️ for GST-compliant commission management**
-#   b b s  
- #   c o m m i s s i o n - s y s t e m  
- 
