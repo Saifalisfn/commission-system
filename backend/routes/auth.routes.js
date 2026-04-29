@@ -11,7 +11,7 @@ const registerValidation = [
   body('name').trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('role').optional().isIn(['admin', 'user']).withMessage('Role must be admin or user')
+  body('role').optional().isIn(['admin', 'user', 'ca']).withMessage('Role must be admin, user, or ca')
 ];
 
 const loginValidation = [

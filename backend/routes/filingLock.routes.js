@@ -24,10 +24,10 @@ const lockValidation = [
   body('remarks').optional().isLength({ max: 500 }).withMessage('Remarks cannot exceed 500 characters')
 ];
 
-// Routes
-router.post('/', lockValidation, validateRequest, lockMonth);
+// Routes — CA has read-only access; only admin/user can lock, only admin can unlock
+router.post('/', authorize('admin', 'user'), lockValidation, validateRequest, lockMonth);
 router.get('/', getFilingLocks);
 router.get('/:month/:year', getFilingLockStatus);
-router.delete('/:month/:year', authorize('admin'), unlockMonth); // Only admin can unlock
+router.delete('/:month/:year', authorize('admin'), unlockMonth);
 
 export default router;

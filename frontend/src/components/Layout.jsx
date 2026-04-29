@@ -45,20 +45,27 @@ const Layout = () => {
 
               {/* Desktop Menu Links */}
               <div className="hidden sm:ml-8 sm:flex sm:space-x-8">
-                <Link to="/dashboard" className={getLinkClasses('/dashboard')}>
-                  Dashboard
-                </Link>
+                {user?.role !== 'ca' && (
+                  <Link to="/dashboard" className={getLinkClasses('/dashboard')}>
+                    Dashboard
+                  </Link>
+                )}
                 <Link to="/transactions" className={getLinkClasses('/transactions')}>
                   Transactions
                 </Link>
                 <Link to="/reports" className={getLinkClasses('/reports')}>
                   Reports
                 </Link>
-                <Link to="/filing-locks" className={getLinkClasses('/filing-locks')}>
-                  Filing Locks
-                </Link>
-                <Link to="/uploadExcel"className={getLinkClasses('/uploadExcel')}>
-                Upload Excel</Link>
+                {user?.role !== 'ca' && (
+                  <Link to="/filing-locks" className={getLinkClasses('/filing-locks')}>
+                    Filing Locks
+                  </Link>
+                )}
+                {user?.role !== 'ca' && (
+                  <Link to="/uploadExcel" className={getLinkClasses('/uploadExcel')}>
+                    Upload Excel
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -68,8 +75,8 @@ const Layout = () => {
                 <span className="text-sm font-medium text-white">
                   {user?.name || 'User'}
                 </span>
-                <span className="text-xs text-slate-500 uppercase tracking-wide">
-                  {user?.role || 'Guest'}
+                <span className={`text-xs uppercase tracking-wide ${user?.role === 'ca' ? 'text-amber-400' : 'text-slate-500'}`}>
+                  {user?.role === 'ca' ? 'CA / Auditor' : user?.role || 'Guest'}
                 </span>
               </div>
               

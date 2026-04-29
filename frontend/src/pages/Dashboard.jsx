@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { useAuth } from '../contexts/AuthContext';
 
 const Spinner = () => (
   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -44,6 +45,8 @@ const Dashboard = () => {
     remarks: ''
   });
   const [calculations, setCalculations] = useState(null);
+  const { user } = useAuth();
+  const isCA = user?.role === 'ca';
   const [submitting, setSubmitting] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [transactionsLoading, setTransactionsLoading] = useState(true);
@@ -240,8 +243,20 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* CA read-only notice */}
+      {isCA && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+          <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <p className="text-sm text-amber-200/80">
+            You are logged in as <span className="font-semibold text-amber-300">CA / Auditor</span>. This is a read-only view — transaction creation and editing are disabled. Use the <Link to="/reports" className="underline hover:text-amber-200">Reports</Link> page to access GST summaries and exports.
+          </p>
+        </div>
+      )}
+
       {/* Form + Calculation Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {!isCA && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Transaction Form */}
         <div className="bg-[#1e293b] shadow-xl shadow-black/10 rounded-xl border border-slate-700/50 p-6">
@@ -411,7 +426,7 @@ const Dashboard = () => {
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Recent Transactions */}
       <div className="bg-[#1e293b] shadow-xl shadow-black/10 rounded-xl border border-slate-700/50 overflow-hidden">

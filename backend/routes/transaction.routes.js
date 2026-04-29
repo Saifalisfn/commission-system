@@ -12,7 +12,7 @@ import {
   confirmExcelImport,
 } from "../controllers/transaction.controller.js";
 
-import { authenticate } from "../middleware/auth.middleware.js";
+import { authenticate, authorize } from "../middleware/auth.middleware.js";
 import { validateRequest } from "../middleware/validate.middleware.js";
 import { checkFilingLock } from "../middleware/filingLock.middleware.js";
 import { upload } from "../middleware/upload.middleware.js";
@@ -71,6 +71,7 @@ const updateValidation = [
 /* CREATE */
 router.post(
   "/",
+  authorize('admin', 'user'),
   createValidation,
   validateRequest,
   createTransaction
@@ -85,6 +86,7 @@ router.get("/:id", getTransaction);
 /* UPDATE */
 router.put(
   "/:id",
+  authorize('admin', 'user'),
   checkFilingLock,
   updateValidation,
   validateRequest,
@@ -94,6 +96,7 @@ router.put(
 /* DELETE */
 router.delete(
   "/:id",
+  authorize('admin', 'user'),
   checkFilingLock,
   deleteTransaction
 );
@@ -105,6 +108,7 @@ router.delete(
 /* Upload + Direct Insert */
 router.post(
   "/upload-excel",
+  authorize('admin', 'user'),
   upload.single("file"),
   uploadSalesExcel
 );
@@ -112,6 +116,7 @@ router.post(
 /* Preview Excel */
 router.post(
   "/preview-excel",
+  authorize('admin', 'user'),
   upload.single("file"),
   previewSalesExcel
 );
@@ -119,6 +124,7 @@ router.post(
 /* Confirm Import */
 router.post(
   "/confirm-excel",
+  authorize('admin', 'user'),
   confirmExcelImport
 );
 

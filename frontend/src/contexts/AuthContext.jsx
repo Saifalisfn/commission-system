@@ -104,7 +104,7 @@ export const AuthProvider = ({ children }) => {
 
       setUser(user);
       toast.success('Login successful');
-      navigate('/dashboard');
+      navigate(user.role === 'ca' ? '/reports' : '/dashboard');
       return { success: true };
     } catch (error) {
       const message = error.response?.data?.message || 'Login failed';
@@ -129,7 +129,7 @@ export const AuthProvider = ({ children }) => {
 
       setUser(user);
       toast.success('Registration successful');
-      navigate('/dashboard');
+      navigate(user.role === 'ca' ? '/reports' : '/dashboard');
       return { success: true };
     } catch (error) {
       const message = error.response?.data?.message || 'Registration failed';

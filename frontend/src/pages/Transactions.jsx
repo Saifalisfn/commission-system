@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { useAuth } from '../contexts/AuthContext';
 
 const Spinner = () => (
   <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -11,6 +12,8 @@ const Spinner = () => (
 );
 
 const Transactions = () => {
+  const { user } = useAuth();
+  const isCA = user?.role === 'ca';
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -246,7 +249,7 @@ const Transactions = () => {
               <table className="min-w-full divide-y divide-slate-700">
                 <thead className="bg-slate-800/80">
                   <tr>
-                    {['Invoice No', 'Date', 'Total Received', 'Commission', 'GST', 'Net Income', 'Return Amount', 'Actions'].map((header) => (
+                    {['Invoice No', 'Date', 'Total Received', 'Commission', 'GST', 'Net Income', 'Return Amount', isCA ? 'Invoice' : 'Actions'].map((header) => (
                         <th key={header} className="px-6 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">
                             {header}
                         </th>
@@ -284,18 +287,20 @@ const Transactions = () => {
                           title="Download Invoice"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                           </svg>
                         </button>
-                        <button
-                          onClick={() => handleDelete(transaction._id)}
-                          className="text-red-400 hover:text-red-300 transition-colors"
-                          title="Delete Transaction"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        {!isCA && (
+                          <button
+                            onClick={() => handleDelete(transaction._id)}
+                            className="text-red-400 hover:text-red-300 transition-colors"
+                            title="Delete Transaction"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                            </svg>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
